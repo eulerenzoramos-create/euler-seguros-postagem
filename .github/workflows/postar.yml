@@ -1,0 +1,39 @@
+name: Postagem diária Instagram
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # 12:00 UTC = 08:00 em Manaus (UTC-4)
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "simular (não posta) ou publicar"
+        default: "simular"
+        type: choice
+        options: [simular, publicar]
+      arte:
+        description: "arte específica (vazio = arte do dia)"
+        default: ""
+        type: string
+
+jobs:
+  postar:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Manaus
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      PUBLIC_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/main/artes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Postar arte do dia
+        run: |
+          ARGS=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.modo }}" = "publicar" ]; then ARGS="--publicar"; fi
+          if [ -n "${{ inputs.arte }}" ]; then ARGS="$ARGS --arte ${{ inputs.arte }}"; fi
+          python postar.py $ARGS
+      - name: Renovar validade do token (todo dia 1º)
+        if: github.event_name == 'schedule'
+        run: |
+          if [ "$(date +%d)" = "01" ]; then python postar.py --renovar-token; fi
